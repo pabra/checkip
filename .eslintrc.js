@@ -1,22 +1,28 @@
 module.exports = {
   parser: '@typescript-eslint/parser', // Specifies the ESLint parser
-  plugins: ['@typescript-eslint', 'jest', 'prettier', 'import'],
+  plugins: [
+    '@typescript-eslint',
+    // 'jest',
+    'prettier',
+    'import',
+  ],
   extends: [
     'eslint:recommended',
     'plugin:node/recommended',
     'plugin:node/recommended-module',
-    'plugin:jest/recommended',
+    // 'plugin:jest/recommended',
     'plugin:@typescript-eslint/eslint-recommended',
     'plugin:@typescript-eslint/recommended', // Uses the recommended rules from the @typescript-eslint/eslint-plugin
     'plugin:import/typescript',
     'prettier', // Uses eslint-config-prettier to disable ESLint rules from @typescript-eslint/eslint-plugin that would conflict with prettier
   ],
   env: {
-    'jest/globals': true,
+    // 'jest/globals': true,
     node: true,
+    es6: true,
   },
   parserOptions: {
-    ecmaVersion: 2020, // Allows for the parsing of modern ECMAScript features
+    ecmaVersion: 2018, // Allows for the parsing of modern ECMAScript features
     sourceType: 'module', // Allows for the use of imports
   },
   rules: {

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>%title%</title>
+    <script async>
+      %script%
+    </script>
+  </head>
+  <body>
+    <h1>%title%</h1>
+    <a href="%ipv4Url%" %ipv4Active%>IPv4 only version</a><br />
+    <a href="%ipv6Url%" %ipv6Active%>IPv6 only version</a><br />
+    <a href="%ipv4n6Url%" %ipv4n6Active%>IPv4 and IPv6 version</a>
+    <p>
+      IP used to load this page: <br />
+      <span>%pageIP%</span>
+    </p>
+    <p>
+      IP used to explicitly load IPv4 content: <br />
+      <span id="ipv4Result">pending...</span>
+    </p>
+    <p>
+      IP used to explicitly load IPv6 content: <br />
+      <span id="ipv6Result">pending...</span>
+    </p>
+    <noscript>You will need to enable JavaScript.</noscript>
+  </body>
+</html>
