@@ -47,6 +47,12 @@ export function getHost(headers: IncomingHttpHeaders): string | undefined {
   return forwardedHost ?? host;
 }
 
+export function getProto(headers: IncomingHttpHeaders): 'http' | 'https' {
+  const proto = getLastOfHeader(headers, 'x-forwarded-proto');
+
+  return proto && proto === 'https' ? proto : 'http';
+}
+
 export function getRemoteAddr(req: IncomingMessage): string | undefined {
   const xRealIp = getLastOfHeader(req.headers, 'x-real-ip');
   const xForwardedFor = getLastOfHeader(req.headers, 'x-forwarded-for');

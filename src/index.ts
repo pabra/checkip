@@ -3,11 +3,14 @@ import { URL } from 'url';
 import {
   getHost,
   getOrigin,
+  getProto,
   getRemoteAddr,
   getResponseFormat,
 } from './httpUtils';
+import { logger as rootLogger } from './logging';
 import { getResponse } from './utils';
 
+const logger = rootLogger.getLogger('index');
 const PORT = process.env['PORT'];
 const HOST = process.env['HOST'];
 const V4URL = process.env['V4URL'];
@@ -44,34 +47,44 @@ const corsHostNames = [v4n6Host, v4Host, v6Host];
 const server = http.createServer();
 
 server.on('request', (req, res) => {
-  if (req.method === 'OPTIONS' && req.url === '/') {
-    const origin = getOrigin(req.headers);
+  try {
+    const host = getHost(req.headers);
+    const proto = getProto(req.headers);
+    const url = new URL(
+      req.url ?? '__no_such_pathname__',
+      `${proto}://${host}`,
+    );
 
-    if (origin && corsHostNames.indexOf(new URL(origin).host) !== -1) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Methods', 'GET');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (url.pathname !== '/') {
+      res.writeHead(404);
+      res.end();
+
+      return;
     }
 
-    res.end();
+    const origin = getOrigin(req.headers);
+    const originHost = origin && new URL(origin).host;
 
-    return;
-  }
+    if (req.method === 'OPTIONS') {
+      if (originHost && corsHostNames.indexOf(originHost) !== -1) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Methods', 'GET');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      }
 
-  if (req.method !== 'GET') {
-    res.writeHead(405);
-    res.end();
+      res.end();
 
-    return;
-  }
+      return;
+    } else if (req.method !== 'GET') {
+      res.writeHead(405);
+      res.end();
 
-  if (req.url === '/') {
-    console.log('req.header:', req.headers); // TODO: remove DEBUG
-    // console.log('req.socket:', req.socket); // TODO: remove DEBUG
-    console.log('req.socket.remoteFamily:', req.socket.remoteFamily); // TODO: remove DEBUG
-    console.log('req.socket.remoteAddress:', req.socket.remoteAddress); // TODO: remove DEBUG
-    console.log('req.socket.remotePort:', req.socket.remotePort); // TODO: remove DEBUG
+      return;
+    }
+
     const remoteAddr = getRemoteAddr(req);
+    logger.debug('request headers', req.headers);
+    logger.debug('remote address', remoteAddr);
 
     if (!remoteAddr) {
       res.writeHead(500);
@@ -81,8 +94,6 @@ server.on('request', (req, res) => {
     }
 
     const responseFormat = getResponseFormat(req.headers);
-    const origin = getOrigin(req.headers);
-    const host = getHost(req.headers);
     const { contentTypeHeaderValue, body } = getResponse(
       responseFormat,
       remoteAddr,
@@ -92,34 +103,24 @@ server.on('request', (req, res) => {
       host === v4Host ? 'checkip4' : host === v6Host ? 'checkip6' : 'checkip',
     );
 
-    if (origin && corsHostNames.indexOf(new URL(origin).host) !== -1) {
+    if (originHost && corsHostNames.indexOf(originHost) !== -1) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Access-Control-Allow-Methods', 'GET');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     }
+
     res.setHeader('Content-Type', contentTypeHeaderValue);
     res.writeHead(200);
     res.end(body);
-
-    // if (isIPv4(remoteAddr)) {
-    //   res.write(`IPv4: ${remoteAddr}`);
-    // } else if (isIPv6(remoteAddr)) {
-    //   res.write(`IPv6: ${remoteAddr}`);
-    // } else {
-    //   res.write(`unknown: ${remoteAddr}`);
-    // }
-    //
-    // res.end();
-
-    return;
+  } catch (err) {
+    logger.err('unhandled error', err);
+    res.writeHead(500);
+    res.end;
   }
-
-  res.writeHead(404);
-  res.end();
 });
 
 server.on('listening', () => {
-  console.log(`server started on: http://${HOST}:${PORT}`);
+  logger.info(`server started on: http://${HOST}:${PORT}`);
 });
 
 server.listen({ port: PORT, host: HOST });
