@@ -5,6 +5,8 @@ on:
     paths-ignore:
       - 'README.md'
       - 'example-nginx-reverse-proxy.conf'
+      - .github/workflows/docker-update-description.yml
+      - .github/dependabot.yml
   pull_request:
     branches:
       - master
