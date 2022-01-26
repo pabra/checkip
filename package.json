@@ -10,7 +10,7 @@
     "node": ">=16.0.0"
   },
   "keywords": [],
-  "author": "",
+  "author": "Patrick Braune <pabra@netzfruech.de>",
   "license": "ISC",
   "scripts": {
     "clean:build": "rimraf dist/*",
