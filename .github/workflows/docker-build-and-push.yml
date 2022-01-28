@@ -3,15 +3,15 @@ name: docker-build-and-push
 on:
   push:
     paths-ignore:
-      - 'README.md'
-      - 'example-nginx-reverse-proxy.conf'
+      - README.md
+      - example-nginx-reverse-proxy.conf
       - .github/workflows/docker-update-description.yml
       - .github/dependabot.yml
   pull_request:
     branches:
-      - master
+      - main
     paths-ignore:
-      - 'README.md'
+      - README.md
 
 jobs:
   publish-docker:
