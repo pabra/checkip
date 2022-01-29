@@ -1,12 +1,8 @@
-type Opaque<Type, Token = unknown> = Type & {
-  readonly __opaque__: Token;
-};
+import type { IPv4, IPv6 } from 'ipaddr.js';
 
-export type IPv4 = Opaque<string, 'IPv4'>;
-export type IPv6 = Opaque<string, 'IPv6'>;
-export type RemoteAddr =
-  | { type: 'IPv4'; value: IPv4 }
-  | { type: 'IPv6'; value: IPv6 }
-  | { type: 'unknown'; value: string };
+// type Opaque<Type, Token = unknown> = Type & {
+//   readonly __opaque__: Token;
+// };
 
+export type RemoteAddr = IPv4 | IPv6;
 export type ResponseFormat = 'text' | 'json' | 'html';

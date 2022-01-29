@@ -8,7 +8,12 @@ import {
   getResponseFormat,
 } from './httpUtils';
 import { logger as rootLogger } from './logging';
-import { getResponse } from './utils';
+import {
+  getResponse,
+  getValidDomainName,
+  getValidV4Subnet,
+  getValidV6Subnet,
+} from './utils';
 
 const logger = rootLogger.getLogger('index');
 const PORT = process.env['PORT'];
@@ -46,7 +51,7 @@ const v6Host = v6Url.host;
 const corsHostNames = [v4n6Host, v4Host, v6Host];
 const server = http.createServer();
 
-server.on('request', (req, res) => {
+server.on('request', async (req, res) => {
   try {
     const host = getHost(req.headers);
     const proto = getProto(req.headers);
@@ -93,15 +98,29 @@ server.on('request', (req, res) => {
       return;
     }
 
+    const domain = url.searchParams.get('domain');
+    const v4Subnet = url.searchParams.get('v4subnet'); // 1 - 32
+    const v6Subnet = url.searchParams.get('v6subnet'); // 1 - 128
+    const validDomain = getValidDomainName(domain);
+    const validV4Subnet = getValidV4Subnet(v4Subnet);
+    const validV6Subnet = getValidV6Subnet(v6Subnet);
+    logger.debug('validDomain', validDomain);
+    logger.debug('validV4Subnet', validV4Subnet);
+    logger.debug('validV6Subnet', validV6Subnet);
+
     const responseFormat = getResponseFormat(req.headers);
-    const { contentTypeHeaderValue, body } = getResponse(
-      responseFormat,
-      remoteAddr,
-      v4Url,
-      v6Url,
-      v4n6Url,
-      host === v4Host ? 'checkip4' : host === v6Host ? 'checkip6' : 'checkip',
-    );
+    const { contentTypeHeaderValue, body } = await getResponse({
+      format: responseFormat,
+      remoteAddressText: remoteAddr,
+      v4Url: v4Url,
+      v6Url: v6Url,
+      v4n6Url: v4n6Url,
+      title:
+        host === v4Host ? 'checkip4' : host === v6Host ? 'checkip6' : 'checkip',
+      domainName: validDomain,
+      v4Subnet: validV4Subnet,
+      v6Subnet: validV6Subnet,
+    });
 
     if (originHost && corsHostNames.indexOf(originHost) !== -1) {
       res.setHeader('Access-Control-Allow-Origin', origin);

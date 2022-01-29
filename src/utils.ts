@@ -1,23 +1,16 @@
+import { promises as dnsPromises } from 'dns';
 import fs from 'fs';
+import type { IPv4, IPv6 } from 'ipaddr.js';
+import { parse } from 'ipaddr.js';
 import type { URL } from 'url';
 import { logger as rootLogger } from './logging';
-import type { IPv4, IPv6, RemoteAddr, ResponseFormat } from './types';
+import type { RemoteAddr, ResponseFormat } from './types';
 
 const logger = rootLogger.getLogger('utils');
+dnsPromises.setServers(['1.1.1.1', '1.0.0.1']);
 
 function assertNever(x: never): never {
   throw new Error('Unexpected object: ' + x);
-}
-
-const ipV4Expr = /^\d{1,3}(?:\.\d{1,3}){3}$/;
-const ipV6Expr = /^[0-9a-fA-F:]+$/;
-
-function isIPv4(str: string): str is IPv4 {
-  return ipV4Expr.test(str);
-}
-
-function isIPv6(str: string): str is IPv6 {
-  return ipV6Expr.test(str);
 }
 
 export function isBrowser(ua: string): boolean {
@@ -52,44 +45,53 @@ function getContentTypeHeaderValue(format: ResponseFormat): string {
   }
 }
 
-function getTextBodyText(remoteAddress: RemoteAddr): string {
-  switch (remoteAddress.type) {
-    case 'IPv4':
-      return `IPv4: ${remoteAddress.value}`;
+function getTextBodyText(
+  remoteAddress: RemoteAddr,
+  matchDomain: boolean | null,
+): string {
+  const kind = remoteAddress.kind();
+  const matchDomainText =
+    matchDomain === null
+      ? ''
+      : matchDomain
+      ? ' does match domain name'
+      : ' does not match domain name';
 
-    case 'IPv6':
-      return `IPv6: ${remoteAddress.value}`;
+  switch (kind) {
+    case 'ipv4':
+      return `IPv4: ${remoteAddress.toString()}${matchDomainText}`;
 
-    case 'unknown':
-      return `unknown: ${remoteAddress.value}`;
+    case 'ipv6':
+      return `IPv6: ${remoteAddress.toString()}${matchDomainText}`;
 
     default:
-      assertNever(remoteAddress);
+      assertNever(kind);
   }
 }
 
-function getJsonBodyText(remoteAddress: RemoteAddr): string {
-  switch (remoteAddress.type) {
-    case 'IPv4':
+function getJsonBodyText(
+  remoteAddress: RemoteAddr,
+  matchDomain: boolean | null,
+): string {
+  const kind = remoteAddress.kind();
+
+  switch (kind) {
+    case 'ipv4':
       return JSON.stringify({
-        address: remoteAddress.value,
-        family: remoteAddress.type,
+        address: remoteAddress.toString(),
+        family: 'IPv4',
+        matchDomain,
       });
 
-    case 'IPv6':
+    case 'ipv6':
       return JSON.stringify({
-        address: remoteAddress.value,
-        family: remoteAddress.type,
-      });
-
-    case 'unknown':
-      return JSON.stringify({
-        address: remoteAddress.value,
-        family: remoteAddress.type,
+        address: remoteAddress.toString(),
+        family: 'IPv6',
+        matchDomain,
       });
 
     default:
-      assertNever(remoteAddress);
+      assertNever(kind);
   }
 }
 
@@ -110,8 +112,8 @@ const htmlScript = (
         el.textContent = text;
       })
       .catch(err => {
-        console.error(`error while fetching url '${url}'`, err);
-        el.textContent = err.toString();
+        logger.err(`error while fetching url '${url}'`, err);
+        el.textContent = String(err);
       });
   };
 
@@ -138,8 +140,12 @@ function getHtmlBodyText(
   v6Url: URL,
   v4n6Url: URL,
   title: string,
+  matchDomain: boolean | null,
 ): string {
-  const pageIP = `${remoteAddress.type}: ${remoteAddress.value}`;
+  const pageIP = `${
+    remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6'
+  }: ${remoteAddress.toString()}`;
+  logger.debug('in getHtmlBodyText matchDomain', matchDomain);
 
   return fullHtml
     .replace(/%title%/g, title)
@@ -174,42 +180,135 @@ function getBodyText(
   v6Url: URL,
   v4n6Url: URL,
   title: string,
+  matchDomain: boolean | null,
 ): string {
   switch (format) {
     case 'text':
-      return getTextBodyText(remoteAddr);
+      return getTextBodyText(remoteAddr, matchDomain);
 
     case 'json':
-      return getJsonBodyText(remoteAddr);
+      return getJsonBodyText(remoteAddr, matchDomain);
 
     case 'html':
-      return getHtmlBodyText(remoteAddr, v4Url, v6Url, v4n6Url, title);
+      return getHtmlBodyText(
+        remoteAddr,
+        v4Url,
+        v6Url,
+        v4n6Url,
+        title,
+        matchDomain,
+      );
 
     default:
       assertNever(format);
   }
 }
 
-export function getResponse(
-  format: ResponseFormat,
-  remoteAddressText: string,
-  v4Url: URL,
-  v6Url: URL,
-  v4n6Url: URL,
-  title: string,
-): { contentTypeHeaderValue: string; body: string } {
-  logger.debug('get response', remoteAddressText);
+function checkIPv4Match(
+  v4: IPv4,
+  subnet: number,
+  addresses: string[],
+): boolean {
+  return addresses.some(addr => v4.match(parse(addr), subnet));
+}
 
-  const remoteAddr: RemoteAddr = isIPv4(remoteAddressText)
-    ? { type: 'IPv4', value: remoteAddressText }
-    : isIPv6(remoteAddressText)
-    ? { type: 'IPv6', value: remoteAddressText }
-    : { type: 'unknown', value: remoteAddressText };
+function checkIPv6Match(
+  v6: IPv6,
+  subnet: number,
+  addresses: string[],
+): boolean {
+  return addresses.some(addr => v6.match(parse(addr), subnet));
+}
 
-  const body = getBodyText(format, remoteAddr, v4Url, v6Url, v4n6Url, title);
+export async function getResponse({
+  format,
+  remoteAddressText,
+  v4Url,
+  v6Url,
+  v4n6Url,
+  title,
+  domainName,
+  v4Subnet,
+  v6Subnet,
+}: {
+  format: ResponseFormat;
+  remoteAddressText: string;
+  v4Url: URL;
+  v6Url: URL;
+  v4n6Url: URL;
+  title: string;
+  domainName: string | null;
+  v4Subnet: number;
+  v6Subnet: number;
+}): Promise<{
+  contentTypeHeaderValue: string;
+  body: string;
+}> {
+  const [a, aaaa] = domainName
+    ? await Promise.allSettled([
+        dnsPromises.resolve4(domainName),
+        dnsPromises.resolve6(domainName),
+      ])
+    : [null, null];
+  logger.debug('a', a);
+  logger.debug('aaaa', aaaa);
+
+  const remoteAddr = parse(remoteAddressText);
+  const remoteAddrKind = remoteAddr.kind();
+  const isMatchDomain =
+    domainName === null
+      ? null
+      : remoteAddrKind === 'ipv4' && a && a.status === 'fulfilled'
+      ? checkIPv4Match(remoteAddr as IPv4, v4Subnet, a.value)
+      : remoteAddrKind === 'ipv6' && aaaa && aaaa.status === 'fulfilled'
+      ? checkIPv6Match(remoteAddr as IPv6, v6Subnet, aaaa.value)
+      : null;
+
+  logger.debug('isMatchDomain', isMatchDomain, domainName);
+
+  const body = getBodyText(
+    format,
+    remoteAddr,
+    v4Url,
+    v6Url,
+    v4n6Url,
+    title,
+    isMatchDomain,
+  );
 
   return {
     contentTypeHeaderValue: getContentTypeHeaderValue(format),
     body,
   };
+}
+
+const domainNameExpr = new RegExp(
+  // prettier-ignore
+  [
+    '^',
+      '[a-zA-Z]',
+      '(?:',
+        '[a-zA-Z0-9-]*',
+      ')',
+      '(?:',
+        '\\.[a-zA-Z0-9-]+',
+      ')+',
+    '$',
+  ].join(''),
+);
+
+export function getValidDomainName(domain: string | null): null | string {
+  return domain === null || !domainNameExpr.test(domain) ? null : domain;
+}
+
+export function getValidV4Subnet(value: string | null): number {
+  const int = parseInt(value ?? '', 10);
+
+  return int > 0 && int <= 32 ? int : 32;
+}
+
+export function getValidV6Subnet(value: string | null): number {
+  const int = parseInt(value ?? '', 10);
+
+  return int > 0 && int <= 128 ? int : 128;
 }

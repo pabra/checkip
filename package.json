@@ -46,6 +46,7 @@
     "typescript": "^4.5.5"
   },
   "dependencies": {
-    "@pabra/logger": "^1.0.6"
+    "@pabra/logger": "^1.0.6",
+    "ipaddr.js": "^2.0.1"
   }
 }
