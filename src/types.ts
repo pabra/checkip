@@ -5,4 +5,4 @@ import type { IPv4, IPv6 } from 'ipaddr.js';
 // };
 
 export type RemoteAddr = IPv4 | IPv6;
-export type ResponseFormat = 'text' | 'json' | 'html';
+export type ResponseFormat = 'text' | 'json' | 'html' | 'prometheus';

@@ -32,6 +32,7 @@ export function isContentTypeText(contentType: string): boolean {
 function getContentTypeHeaderValue(format: ResponseFormat): string {
   switch (format) {
     case 'text':
+    case 'prometheus':
       return 'text/plain';
 
     case 'html':
@@ -178,6 +179,21 @@ function getHtmlBodyText(
     );
 }
 
+function getPrometheusBodyText(
+  remoteAddress: RemoteAddr,
+  matchDomain: boolean | null,
+): string {
+  const key = 'checkip_match_domain';
+  const family = remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6';
+  const matchDomainValue = matchDomain === null ? '-1' : matchDomain ? 1 : 0;
+
+  return [
+    `# HELP ${key} does remote addr match domain IP (-1: unable; 0: does not match; 1: does match)`,
+    `# TYPE ${key} gauge`,
+    `${key}{family="${family}",address="${remoteAddress.toString()}"} ${matchDomainValue}`,
+  ].join('\n');
+}
+
 function getBodyText(
   format: ResponseFormat,
   remoteAddr: RemoteAddr,
@@ -203,6 +219,9 @@ function getBodyText(
         title,
         matchDomain,
       );
+
+    case 'prometheus':
+      return getPrometheusBodyText(remoteAddr, matchDomain);
 
     default:
       assertNever(format);
