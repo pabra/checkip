@@ -77,6 +77,9 @@ export function getResponseFormat(
 
     case 'html':
       return 'html';
+
+    case 'prometheus':
+      return 'prometheus';
   }
 
   const contentType = getLastOfHeader(headers, 'content-type');
