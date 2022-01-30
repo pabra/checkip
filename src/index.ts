@@ -101,6 +101,7 @@ server.on('request', async (req, res) => {
     const domain = url.searchParams.get('domain');
     const v4Subnet = url.searchParams.get('v4subnet'); // 1 - 32
     const v6Subnet = url.searchParams.get('v6subnet'); // 1 - 128
+    const formatFromSearchParam = url.searchParams.get('format');
     const validDomain = getValidDomainName(domain);
     const validV4Subnet = getValidV4Subnet(v4Subnet);
     const validV6Subnet = getValidV6Subnet(v6Subnet);
@@ -108,7 +109,10 @@ server.on('request', async (req, res) => {
     logger.debug('validV4Subnet', validV4Subnet);
     logger.debug('validV6Subnet', validV6Subnet);
 
-    const responseFormat = getResponseFormat(req.headers);
+    const responseFormat = getResponseFormat(
+      req.headers,
+      formatFromSearchParam,
+    );
     const { contentTypeHeaderValue, body } = await getResponse({
       format: responseFormat,
       remoteAddressText: remoteAddr,

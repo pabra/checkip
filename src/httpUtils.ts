@@ -66,7 +66,19 @@ export function getRemoteAddr(req: IncomingMessage): string | undefined {
 
 export function getResponseFormat(
   headers: IncomingHttpHeaders,
+  formatFromSearchParam: string | null,
 ): ResponseFormat {
+  switch (formatFromSearchParam) {
+    case 'text':
+      return 'text';
+
+    case 'json':
+      return 'json';
+
+    case 'html':
+      return 'html';
+  }
+
   const contentType = getLastOfHeader(headers, 'content-type');
   const userAgent = getLastOfHeader(headers, 'user-agent');
 
