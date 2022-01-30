@@ -45,17 +45,20 @@ function getContentTypeHeaderValue(format: ResponseFormat): string {
   }
 }
 
+function getMatchText(match: boolean | null): string {
+  return match === null
+    ? ''
+    : match
+    ? ' does match domain name'
+    : ' does not match domain name';
+}
+
 function getTextBodyText(
   remoteAddress: RemoteAddr,
   matchDomain: boolean | null,
 ): string {
   const kind = remoteAddress.kind();
-  const matchDomainText =
-    matchDomain === null
-      ? ''
-      : matchDomain
-      ? ' does match domain name'
-      : ' does not match domain name';
+  const matchDomainText = getMatchText(matchDomain);
 
   switch (kind) {
     case 'ipv4':
@@ -145,7 +148,8 @@ function getHtmlBodyText(
   const pageIP = `${
     remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6'
   }: ${remoteAddress.toString()}`;
-  logger.debug('in getHtmlBodyText matchDomain', matchDomain);
+
+  const matchDomainText = getMatchText(matchDomain);
 
   return fullHtml
     .replace(/%title%/g, title)
@@ -165,6 +169,7 @@ function getHtmlBodyText(
       title === 'checkip' ? 'style="font-weight: bold"' : '',
     )
     .replace('%pageIP%', pageIP)
+    .replace('%matchDomainText%', matchDomainText)
     .replace(
       '%script%',
       `(${htmlScript.toString()})(window, ${JSON.stringify(
