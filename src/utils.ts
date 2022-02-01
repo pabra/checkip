@@ -46,20 +46,21 @@ function getContentTypeHeaderValue(format: ResponseFormat): string {
   }
 }
 
-function getMatchText(match: boolean | null): string {
+type Match =
+  | { match: boolean; domainName: string }
+  | { match: null; domainName: null };
+
+function getMatchText({ match, domainName }: Match): string {
   return match === null
     ? ''
     : match
-    ? ' does match domain name'
-    : ' does not match domain name';
+    ? ` does match domain name '${domainName}'`
+    : ` does not match domain name '${domainName}'`;
 }
 
-function getTextBodyText(
-  remoteAddress: RemoteAddr,
-  matchDomain: boolean | null,
-): string {
+function getTextBodyText(remoteAddress: RemoteAddr, match: Match): string {
   const kind = remoteAddress.kind();
-  const matchDomainText = getMatchText(matchDomain);
+  const matchDomainText = getMatchText(match);
 
   switch (kind) {
     case 'ipv4':
@@ -73,10 +74,7 @@ function getTextBodyText(
   }
 }
 
-function getJsonBodyText(
-  remoteAddress: RemoteAddr,
-  matchDomain: boolean | null,
-): string {
+function getJsonBodyText(remoteAddress: RemoteAddr, match: Match): string {
   const kind = remoteAddress.kind();
 
   switch (kind) {
@@ -84,14 +82,14 @@ function getJsonBodyText(
       return JSON.stringify({
         address: remoteAddress.toString(),
         family: 'IPv4',
-        matchDomain,
+        ...(match.match === null ? null : { match }),
       });
 
     case 'ipv6':
       return JSON.stringify({
         address: remoteAddress.toString(),
         family: 'IPv6',
-        matchDomain,
+        ...(match.match === null ? null : { match }),
       });
 
     default:
@@ -144,13 +142,13 @@ function getHtmlBodyText(
   v6Url: URL,
   v4n6Url: URL,
   title: string,
-  matchDomain: boolean | null,
+  match: Match,
 ): string {
   const pageIP = `${
     remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6'
   }: ${remoteAddress.toString()}`;
 
-  const matchDomainText = getMatchText(matchDomain);
+  const matchDomainText = getMatchText(match);
 
   return fullHtml
     .replace(/%title%/g, title)
@@ -181,16 +179,25 @@ function getHtmlBodyText(
 
 function getPrometheusBodyText(
   remoteAddress: RemoteAddr,
-  matchDomain: boolean | null,
+  match: Match,
 ): string {
   const key = 'checkip_match_domain';
   const family = remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6';
-  const matchDomainValue = matchDomain === null ? '-1' : matchDomain ? 1 : 0;
+  const address = remoteAddress.toString();
+  const value = match.domainName === null ? '-1' : match.domainName ? 1 : 0;
+  const labels = {
+    family,
+    address,
+    ...(match.domainName === null ? null : { domainName: match.domainName }),
+  };
+  const labelsArr = Object.entries(labels).reduce<string[]>((acc, [k, v]) => {
+    return [...acc, `${k}=${JSON.stringify(v)}`];
+  }, []);
 
   return [
     `# HELP ${key} does remote addr match domain IP (-1: unable; 0: does not match; 1: does match)`,
     `# TYPE ${key} gauge`,
-    `${key}{family="${family}",address="${remoteAddress.toString()}"} ${matchDomainValue}`,
+    `${key}{${labelsArr.join(',')}} ${value}`,
   ].join('\n');
 }
 
@@ -201,27 +208,20 @@ function getBodyText(
   v6Url: URL,
   v4n6Url: URL,
   title: string,
-  matchDomain: boolean | null,
+  match: Match,
 ): string {
   switch (format) {
     case 'text':
-      return getTextBodyText(remoteAddr, matchDomain);
+      return getTextBodyText(remoteAddr, match);
 
     case 'json':
-      return getJsonBodyText(remoteAddr, matchDomain);
+      return getJsonBodyText(remoteAddr, match);
 
     case 'html':
-      return getHtmlBodyText(
-        remoteAddr,
-        v4Url,
-        v6Url,
-        v4n6Url,
-        title,
-        matchDomain,
-      );
+      return getHtmlBodyText(remoteAddr, v4Url, v6Url, v4n6Url, title, match);
 
     case 'prometheus':
-      return getPrometheusBodyText(remoteAddr, matchDomain);
+      return getPrometheusBodyText(remoteAddr, match);
 
     default:
       assertNever(format);
@@ -268,27 +268,34 @@ export async function getResponse({
   contentTypeHeaderValue: string;
   body: string;
 }> {
-  const [a, aaaa] = domainName
-    ? await Promise.allSettled([
-        dnsPromises.resolve4(domainName),
-        dnsPromises.resolve6(domainName),
-      ])
-    : [null, null];
+  const [a, aaaa] =
+    domainName === null
+      ? [null, null]
+      : await Promise.allSettled([
+          dnsPromises.resolve4(domainName),
+          dnsPromises.resolve6(domainName),
+        ]);
   logger.debug('a', a);
   logger.debug('aaaa', aaaa);
 
   const remoteAddr = parse(remoteAddressText);
   const remoteAddrKind = remoteAddr.kind();
-  const isMatchDomain =
+  const match: Match =
     domainName === null
-      ? null
+      ? { domainName, match: null }
       : remoteAddrKind === 'ipv4' && a && a.status === 'fulfilled'
-      ? checkIPv4Match(remoteAddr as IPv4, v4Subnet, a.value)
+      ? {
+          domainName,
+          match: checkIPv4Match(remoteAddr as IPv4, v4Subnet, a.value),
+        }
       : remoteAddrKind === 'ipv6' && aaaa && aaaa.status === 'fulfilled'
-      ? checkIPv6Match(remoteAddr as IPv6, v6Subnet, aaaa.value)
-      : null;
+      ? {
+          domainName,
+          match: checkIPv6Match(remoteAddr as IPv6, v6Subnet, aaaa.value),
+        }
+      : { domainName: null, match: null };
 
-  logger.debug('isMatchDomain', isMatchDomain, domainName);
+  logger.debug('match', match, domainName);
 
   const body = getBodyText(
     format,
@@ -297,7 +304,7 @@ export async function getResponse({
     v6Url,
     v4n6Url,
     title,
-    isMatchDomain,
+    match,
   );
 
   return {
