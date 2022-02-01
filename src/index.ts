@@ -109,6 +109,20 @@ server.on('request', async (req, res) => {
     logger.debug('validV4Subnet', validV4Subnet);
     logger.debug('validV6Subnet', validV6Subnet);
 
+    [v4Url, v6Url, v4n6Url].forEach(_url => {
+      if (validDomain && domain) {
+        _url.searchParams.set('domain', domain);
+      }
+
+      if (validV4Subnet && v4Subnet) {
+        _url.searchParams.set('v4subnet', v4Subnet);
+      }
+
+      if (validV6Subnet && v6Subnet) {
+        _url.searchParams.set('v6subnet', v6Subnet);
+      }
+    });
+
     const responseFormat = getResponseFormat(
       req.headers,
       formatFromSearchParam,

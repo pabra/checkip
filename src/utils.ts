@@ -114,7 +114,6 @@ const htmlScript = (
         el.textContent = text;
       })
       .catch(err => {
-        logger.err(`error while fetching url '${url}'`, err);
         el.textContent = String(err);
       });
   };
@@ -124,11 +123,11 @@ const htmlScript = (
     const ipv6El = win.document.getElementById('ipv6Result');
 
     if (!ipv4El) {
-      throw new Error('no element with id "ipv4Result"');
+      throw new win.Error('no element with id "ipv4Result"');
     }
 
     if (!ipv6El) {
-      throw new Error('no element with id "ipv6Result"');
+      throw new win.Error('no element with id "ipv6Result"');
     }
 
     fetchCheckip(v4Url, ipv4El);
@@ -149,12 +148,15 @@ function getHtmlBodyText(
   }: ${remoteAddress.toString()}`;
 
   const matchDomainText = getMatchText(match);
+  const v4UrlStr = v4Url.toString();
+  const v6UrlStr = v6Url.toString();
+  const v4n6UrlStr = v4n6Url.toString();
 
   return fullHtml
     .replace(/%title%/g, title)
-    .replace('%ipv4Url%', v4Url.toString())
-    .replace('%ipv6Url%', v6Url.toString())
-    .replace('%ipv4n6Url%', v4n6Url.toString())
+    .replace('%ipv4Url%', v4UrlStr)
+    .replace('%ipv6Url%', v6UrlStr)
+    .replace('%ipv4n6Url%', v4n6UrlStr)
     .replace(
       '%ipv4Active%',
       title === 'checkip4' ? 'style="font-weight: bold"' : '',
@@ -172,8 +174,8 @@ function getHtmlBodyText(
     .replace(
       '%script%',
       `(${htmlScript.toString()})(window, ${JSON.stringify(
-        v4Url.toString(),
-      )}, ${JSON.stringify(v6Url.toString())})`,
+        v4UrlStr,
+      )}, ${JSON.stringify(v6UrlStr)})`,
     );
 }
 
