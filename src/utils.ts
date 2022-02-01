@@ -82,14 +82,14 @@ function getJsonBodyText(remoteAddress: RemoteAddr, match: Match): string {
       return JSON.stringify({
         address: remoteAddress.toString(),
         family: 'IPv4',
-        ...(match.match === null ? null : { match }),
+        ...(match.match === null ? null : { ...match }),
       });
 
     case 'ipv6':
       return JSON.stringify({
         address: remoteAddress.toString(),
         family: 'IPv6',
-        ...(match.match === null ? null : { match }),
+        ...(match.match === null ? null : { ...match }),
       });
 
     default:
@@ -102,6 +102,7 @@ const htmlScript = (
   win: Window & typeof globalThis,
   v4Url: string,
   v6Url: string,
+  formatMatch: typeof getMatchText,
 ) => {
   const fetchCheckip = (url: string, el: HTMLElement) => {
     win
@@ -110,7 +111,13 @@ const htmlScript = (
       })
       .then(res => res.json())
       .then(json => {
-        const text = `${json.family}: ${json.address}`;
+        const { match, domainName } = json;
+        const matchData =
+          typeof match === 'boolean' && typeof domainName === 'string'
+            ? ({ match, domainName } as const)
+            : ({ match: null, domainName: null } as const);
+        const matchText = formatMatch(matchData);
+        const text = `${json.family}: ${json.address}${matchText}`;
         el.textContent = text;
       })
       .catch(err => {
@@ -175,7 +182,7 @@ function getHtmlBodyText(
       '%script%',
       `(${htmlScript.toString()})(window, ${JSON.stringify(
         v4UrlStr,
-      )}, ${JSON.stringify(v6UrlStr)})`,
+      )}, ${JSON.stringify(v6UrlStr)}, ${getMatchText.toString()})`,
     );
 }
 
