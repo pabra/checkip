@@ -109,7 +109,13 @@ server.on('request', async (req, res) => {
     logger.debug('validV4Subnet', validV4Subnet);
     logger.debug('validV6Subnet', validV6Subnet);
 
-    [v4Url, v6Url, v4n6Url].forEach(_url => {
+    const [updatedV4Url, updatedV6Url, updatedV4n6Url] = [
+      new URL(v4Url.toString()),
+      new URL(v6Url.toString()),
+      new URL(v4n6Url.toString()),
+    ] as const;
+
+    [updatedV4Url, updatedV6Url, updatedV4n6Url].forEach(_url => {
       if (validDomain && domain) {
         _url.searchParams.set('domain', domain);
       }
