@@ -136,9 +136,9 @@ server.on('request', async (req, res) => {
     const { contentTypeHeaderValue, body } = await getResponse({
       format: responseFormat,
       remoteAddressText: remoteAddr,
-      v4Url: v4Url,
-      v6Url: v6Url,
-      v4n6Url: v4n6Url,
+      v4Url: updatedV4Url,
+      v6Url: updatedV6Url,
+      v4n6Url: updatedV4n6Url,
       title:
         host === v4Host ? 'checkip4' : host === v6Host ? 'checkip6' : 'checkip',
       domainName: validDomain,
