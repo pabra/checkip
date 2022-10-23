@@ -31,7 +31,7 @@ jobs:
         id: package_json
         run: |
           PACKAGE_JSON="$( cat package.json )"
-          echo "PACKAGE_JSON=${PACKAGE_JSON}" >> $GITHUB_OUTPUT
+          echo "PACKAGE_AUTHOR=${{ fromJSON( $PACKAGE_JSON ).author }}" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -47,7 +47,7 @@ jobs:
         with:
           images: pabra/checkip
           labels: |
-            org.opencontainers.image.authors=${{ fromJSON( steps.package_json.outputs.PACKAGE_JSON ).author }}
+            org.opencontainers.image.authors=${{ steps.package_json.outputs.PACKAGE_AUTHOR }}
 
       - name: Login to DockerHub
         uses: docker/login-action@v1
