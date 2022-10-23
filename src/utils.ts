@@ -193,7 +193,7 @@ function getPrometheusBodyText(
   const key = 'checkip_match_domain';
   const family = remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6';
   const address = remoteAddress.toString();
-  const value = match.domainName === null ? '-1' : match.domainName ? 1 : 0;
+  const value = match.domainName === null ? '-1' : match.match ? 1 : 0;
   const labels = {
     family,
     address,
