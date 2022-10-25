@@ -9,8 +9,6 @@ on:
       - .github/dependabot.yml
     branches:
       - main
-    paths-ignore:
-      - README.md
 
 jobs:
   publish-docker:
