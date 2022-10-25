@@ -52,7 +52,7 @@ type Match =
 
 function getMatchText(
   { match, domainName }: Match,
-  ensuredMatchingAddr: RemoteAddr | null,
+  ensuredMatchingAddr: string | null,
 ): string {
   const ensuredAddrText =
     ensuredMatchingAddr === null
@@ -71,7 +71,10 @@ function getTextBodyText(
   ensuredMatchingAddr: RemoteAddr | null,
 ): string {
   const kind = remoteAddress.kind();
-  const matchDomainText = getMatchText(match, ensuredMatchingAddr);
+  const matchDomainText = getMatchText(
+    match,
+    ensuredMatchingAddr ? ensuredMatchingAddr.toString() : null,
+  );
 
   switch (kind) {
     case 'ipv4':
@@ -133,12 +136,11 @@ const htmlScript = (
       .then(res => res.json())
       .then(json => {
         const { match, domainName, matchingAddress } = json;
-        const matchingAddr = matchingAddress ? parse(matchingAddress) : null;
         const matchData =
           typeof match === 'boolean' && typeof domainName === 'string'
             ? ({ match, domainName } as const)
             : ({ match: null, domainName: null } as const);
-        const matchText = formatMatch(matchData, matchingAddr);
+        const matchText = formatMatch(matchData, matchingAddress);
         const text = `${json.family}: ${json.address}${matchText}`;
         el.textContent = text;
       })
@@ -177,7 +179,10 @@ function getHtmlBodyText(
     remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6'
   }: ${remoteAddress.toString()}`;
 
-  const matchDomainText = getMatchText(match, ensuredMatchingAddr);
+  const matchDomainText = getMatchText(
+    match,
+    ensuredMatchingAddr ? ensuredMatchingAddr.toString() : null,
+  );
   const v4UrlStr = v4Url.toString();
   const v6UrlStr = v6Url.toString();
   const v4n6UrlStr = v4n6Url.toString();
