@@ -50,17 +50,28 @@ type Match =
   | { match: boolean; domainName: string }
   | { match: null; domainName: null };
 
-function getMatchText({ match, domainName }: Match): string {
+function getMatchText(
+  { match, domainName }: Match,
+  ensuredMatchingAddr: RemoteAddr | null,
+): string {
+  const ensuredAddrText =
+    ensuredMatchingAddr === null
+      ? ''
+      : ` but '${ensuredMatchingAddr}' would match`;
   return match === null
     ? ''
     : match
-    ? ` does match domain name '${domainName}'`
-    : ` does not match domain name '${domainName}'`;
+    ? ` does match domain name '${domainName}'${ensuredAddrText}`
+    : ` does not match domain name '${domainName}'${ensuredAddrText}`;
 }
 
-function getTextBodyText(remoteAddress: RemoteAddr, match: Match): string {
+function getTextBodyText(
+  remoteAddress: RemoteAddr,
+  match: Match,
+  ensuredMatchingAddr: RemoteAddr | null,
+): string {
   const kind = remoteAddress.kind();
-  const matchDomainText = getMatchText(match);
+  const matchDomainText = getMatchText(match, ensuredMatchingAddr);
 
   switch (kind) {
     case 'ipv4':
@@ -74,7 +85,11 @@ function getTextBodyText(remoteAddress: RemoteAddr, match: Match): string {
   }
 }
 
-function getJsonBodyText(remoteAddress: RemoteAddr, match: Match): string {
+function getJsonBodyText(
+  remoteAddress: RemoteAddr,
+  match: Match,
+  ensuredMatchingAddr: RemoteAddr | null,
+): string {
   const kind = remoteAddress.kind();
 
   switch (kind) {
@@ -83,6 +98,9 @@ function getJsonBodyText(remoteAddress: RemoteAddr, match: Match): string {
         address: remoteAddress.toString(),
         family: 'IPv4',
         ...(match.match === null ? null : { ...match }),
+        ...(ensuredMatchingAddr === null
+          ? null
+          : { matchingAddress: ensuredMatchingAddr.toString() }),
       });
 
     case 'ipv6':
@@ -90,6 +108,9 @@ function getJsonBodyText(remoteAddress: RemoteAddr, match: Match): string {
         address: remoteAddress.toString(),
         family: 'IPv6',
         ...(match.match === null ? null : { ...match }),
+        ...(ensuredMatchingAddr === null
+          ? null
+          : { matchingAddress: ensuredMatchingAddr.toString() }),
       });
 
     default:
@@ -111,12 +132,13 @@ const htmlScript = (
       })
       .then(res => res.json())
       .then(json => {
-        const { match, domainName } = json;
+        const { match, domainName, matchingAddress } = json;
+        const matchingAddr = matchingAddress ? parse(matchingAddress) : null;
         const matchData =
           typeof match === 'boolean' && typeof domainName === 'string'
             ? ({ match, domainName } as const)
             : ({ match: null, domainName: null } as const);
-        const matchText = formatMatch(matchData);
+        const matchText = formatMatch(matchData, matchingAddr);
         const text = `${json.family}: ${json.address}${matchText}`;
         el.textContent = text;
       })
@@ -149,12 +171,13 @@ function getHtmlBodyText(
   v4n6Url: URL,
   title: string,
   match: Match,
+  ensuredMatchingAddr: RemoteAddr | null,
 ): string {
   const pageIP = `${
     remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6'
   }: ${remoteAddress.toString()}`;
 
-  const matchDomainText = getMatchText(match);
+  const matchDomainText = getMatchText(match, ensuredMatchingAddr);
   const v4UrlStr = v4Url.toString();
   const v6UrlStr = v6Url.toString();
   const v4n6UrlStr = v4n6Url.toString();
@@ -189,6 +212,7 @@ function getHtmlBodyText(
 function getPrometheusBodyText(
   remoteAddress: RemoteAddr,
   match: Match,
+  ensuredMatchingAddr: RemoteAddr | null,
 ): string {
   const key = 'checkip_match_domain';
   const family = remoteAddress.kind() === 'ipv4' ? 'IPv4' : 'IPv6';
@@ -199,15 +223,29 @@ function getPrometheusBodyText(
     address,
     ...(match.domainName === null ? null : { domainName: match.domainName }),
   };
-  const labelsArr = Object.entries(labels).reduce<string[]>((acc, [k, v]) => {
-    return [...acc, `${k}=${JSON.stringify(v)}`];
-  }, []);
+  const formatLabels = (labelsObj: Record<string, string>) =>
+    Object.entries(labelsObj)
+      .reduce<string[]>((acc, [k, v]) => {
+        return [...acc, `${k}=${JSON.stringify(v)}`];
+      }, [])
+      .join(',');
 
-  return [
+  const lines = [
     `# HELP ${key} does remote addr match domain IP (-1: unable; 0: does not match; 1: does match)`,
     `# TYPE ${key} gauge`,
-    `${key}{${labelsArr.join(',')}} ${value}`,
-  ].join('\n');
+    `${key}{${formatLabels(labels)}} ${value}`,
+  ];
+
+  if (ensuredMatchingAddr) {
+    lines.push(
+      `${key}{${formatLabels({
+        ...labels,
+        address: ensuredMatchingAddr.toString(),
+      })}} 1`,
+    );
+  }
+
+  return lines.join('\n');
 }
 
 function getBodyText(
@@ -218,19 +256,28 @@ function getBodyText(
   v4n6Url: URL,
   title: string,
   match: Match,
+  ensuredMatchingAddr: RemoteAddr | null,
 ): string {
   switch (format) {
     case 'text':
-      return getTextBodyText(remoteAddr, match);
+      return getTextBodyText(remoteAddr, match, ensuredMatchingAddr);
 
     case 'json':
-      return getJsonBodyText(remoteAddr, match);
+      return getJsonBodyText(remoteAddr, match, ensuredMatchingAddr);
 
     case 'html':
-      return getHtmlBodyText(remoteAddr, v4Url, v6Url, v4n6Url, title, match);
+      return getHtmlBodyText(
+        remoteAddr,
+        v4Url,
+        v6Url,
+        v4n6Url,
+        title,
+        match,
+        ensuredMatchingAddr,
+      );
 
     case 'prometheus':
-      return getPrometheusBodyText(remoteAddr, match);
+      return getPrometheusBodyText(remoteAddr, match, ensuredMatchingAddr);
 
     default:
       assertNever(format);
@@ -292,12 +339,12 @@ export async function getResponse({
   const match: Match =
     domainName === null
       ? { domainName, match: null }
-      : remoteAddrKind === 'ipv4' && a && a.status === 'fulfilled'
+      : remoteAddrKind === 'ipv4' && a?.status === 'fulfilled'
       ? {
           domainName,
           match: checkIPv4Match(remoteAddr as IPv4, v4Subnet, a.value),
         }
-      : remoteAddrKind === 'ipv6' && aaaa && aaaa.status === 'fulfilled'
+      : remoteAddrKind === 'ipv6' && aaaa?.status === 'fulfilled'
       ? {
           domainName,
           match: checkIPv6Match(remoteAddr as IPv6, v6Subnet, aaaa.value),
@@ -305,6 +352,20 @@ export async function getResponse({
       : { domainName: null, match: null };
 
   logger.debug('match', match, domainName);
+  const ensuredMatchingAddr =
+    match.match === null
+      ? null
+      : remoteAddrKind === 'ipv4' && a?.status === 'fulfilled'
+      ? a.value.map(parse).find(addr => !remoteAddr.match(addr, v4Subnet)) ??
+        null
+      : remoteAddrKind === 'ipv6' && aaaa?.status === 'fulfilled'
+      ? aaaa.value.map(parse).find(addr => !remoteAddr.match(addr, v6Subnet)) ??
+        null
+      : null;
+  logger.debug(
+    'ensuredMatchingAddr',
+    ensuredMatchingAddr ? ensuredMatchingAddr.toString() : null,
+  );
 
   const body = getBodyText(
     format,
@@ -314,6 +375,7 @@ export async function getResponse({
     v4n6Url,
     title,
     match,
+    ensuredMatchingAddr,
   );
 
   return {
