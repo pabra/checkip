@@ -18,4 +18,4 @@ const logHandler: Handler = {
   transporter: transporters.consoleTransporter,
 };
 
-export const logger = getLogger('bookmark-sync-server', logHandler);
+export const logger = getLogger('checkip', logHandler);
