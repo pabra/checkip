@@ -7,7 +7,6 @@ on:
       - example-nginx-reverse-proxy.conf
       - .github/workflows/docker-update-description.yml
       - .github/dependabot.yml
-  pull_request:
     branches:
       - main
     paths-ignore:
