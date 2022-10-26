@@ -140,7 +140,7 @@ const htmlScript = (
           typeof match === 'boolean' && typeof domainName === 'string'
             ? ({ match, domainName } as const)
             : ({ match: null, domainName: null } as const);
-        const matchText = formatMatch(matchData, matchingAddress);
+        const matchText = formatMatch(matchData, matchingAddress ?? null);
         const text = `${json.family}: ${json.address}${matchText}`;
         el.textContent = text;
       })
